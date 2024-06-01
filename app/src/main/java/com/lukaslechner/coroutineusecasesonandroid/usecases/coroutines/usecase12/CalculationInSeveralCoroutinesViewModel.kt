@@ -1,9 +1,17 @@
 package com.lukaslechner.coroutineusecasesonandroid.usecases.coroutines.usecase12
 
+import android.util.Log
+import androidx.lifecycle.viewModelScope
 import com.lukaslechner.coroutineusecasesonandroid.base.BaseViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.math.BigInteger
+import java.util.Timer
 import kotlin.system.measureTimeMillis
 
 class CalculationInSeveralCoroutinesViewModel(
@@ -15,26 +23,41 @@ class CalculationInSeveralCoroutinesViewModel(
         factorialOf: Int,
         numberOfCoroutines: Int
     ) {
-        uiState.value = UiState.Loading
+        try {
+            viewModelScope.launch {
+                uiState.value = UiState.Loading
 
-        var factorialResult = BigInteger.ZERO
-        val computationDuration = measureTimeMillis {
-            factorialResult =
-                factorialCalculator.calculateFactorial(
-                    factorialOf,
-                    numberOfCoroutines
+                var factorialResult = BigInteger.ONE
+                val computationDuration = measureTimeMillis {
+                    factorialResult = withContext(Dispatchers.IO) {
+                        factorialCalculator.calculateFactorial(
+                            factorialOf,
+                            numberOfCoroutines
+                        )
+                    }
+                }
+
+                var resultString = ""
+                val stringConversionDuration = measureTimeMillis {
+                    resultString = withContext(Dispatchers.IO) {
+                        convertToString(factorialResult)
+                    }
+                }
+                uiState.value = UiState.Success(
+                    resultString,
+                    computationDuration,
+                    stringConversionDuration
                 )
+            }
+        } catch(e: Exception) {
+            Timer(e.message)
+            uiState.value = UiState.Error("Error while calculating result")
         }
 
-        var resultString = ""
-        val stringConversionDuration = measureTimeMillis {
-            resultString = convertToString(factorialResult)
-        }
-
-        uiState.value =
-            UiState.Success(resultString, computationDuration, stringConversionDuration)
     }
 
-    // TODO: execute on background thread
-    private fun convertToString(number: BigInteger): String = number.toString()
+    private suspend fun convertToString(number: BigInteger): String =
+        withContext(Dispatchers.IO) {
+            number.toString()
+        }
 }
